@@ -1,4 +1,4 @@
-scoring_vanila <- function(X, y, W = NULL, theta0 =c(1, 0.5),
+scoring_vanila <- function(X, y, W = NULL, theta0 =c(0.5, 0.5),
                                  max_iter = 100, eps = 1e-6,
                                  verbose = FALSE){
 
@@ -7,8 +7,13 @@ scoring_vanila <- function(X, y, W = NULL, theta0 =c(1, 0.5),
   iter <- 0
   n<- length(y)
 
-  S = ifelse(is.null(W), X %*% t(X) , X %*% W %*% t(X))
-  S = (n/trace(S)) * S
+  S <- if (is.null(W)) {
+    X %*% t(X)
+  } else {
+    X %*% W %*% t(X)
+  }
+
+  S = (n/sum(diag(S) )) * S
   S_eigen = eigen(S)
 
   while (!converged && iter < max_iter){
@@ -50,7 +55,7 @@ scoring_vanila <- function(X, y, W = NULL, theta0 =c(1, 0.5),
 var_cal = function(est, fisher_mat){
   heri.est = est[1]/(est[1] + est[2])
   var.mat = solve(fisher_mat)
-  heri.gr = numDeriv::grad(heri, est)
+  heri.gr = heri_gr(est[1], est[2])
   heri.var = t(heri.gr) %*% var.mat %*% heri.gr
   return(c(heri.est = heri.est, heri.se = sqrt(heri.var), sigma_g2.est = est[1], sigma_g2.se = sqrt(var.mat[1,1]),
            sigma_e2.est = est[2], sigma_e2.se = sqrt(var.mat[2,2]) ))
@@ -78,3 +83,15 @@ fisher_mat_var = function(y, by, theta2, sigma2, trace1, trace2){
 
   return(fisher)
 }
+
+heri = function(est){
+  return( est[1]/(est[1] + est[2]) )
+}
+
+heri_gr = function(theta2, sigma2){
+  grad_theta2 <- (sigma2 / (theta2 + sigma2)^2)
+  grad_sigma2 <- (-theta2 / (theta2 + sigma2)^2)
+  return(c(grad_theta2,  grad_sigma2 ))
+}
+
+
