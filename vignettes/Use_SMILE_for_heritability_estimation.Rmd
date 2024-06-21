@@ -1,0 +1,94 @@
+---
+title: "Use_SMILE_for_heritability_estimation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Use_SMILE_for_heritability_estimation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+#library(SMILE)
+devtools::load_all()
+```
+
+The package contains two parts: (1) a general function for SMILE estimation and inference based on the input of (S, y); (2) the function designed for the genetic application. 
+The input is a genotype  bed.file, specifed weight matrix W or a block division, and the outcome file . 
+
+## Statistical evaluation
+
+```{r}
+set.seed(123)
+library(dplyr)
+library(parallel)
+n = 800
+p = 1000
+h2 = 0.4
+rho = 0.9
+coef_type = "sparse"
+
+# autoregressive structure with rho = 0.9
+Sigma = (rho)^(abs(outer(1:p, 1:p, "-")))
+Sigma_sqrt = with(eigen(Sigma), vectors %*% (values^(1/2) * t(vectors)))
+
+
+if(coef_type == "normal"){
+beta_coef = rnorm(p)
+}
+
+
+if(coef_type == "sparse"){
+  beta_coef = rep( c(1, rep(0, 49)), 20  )
+}
+
+X = matrix(rnorm(n*p), n, p) %*% Sigma_sqrt
+beta_coef = beta_coef/ c(sqrt(t( beta_coef) %*% Sigma %*% beta_coef )) * sqrt(h2)
+
+# generate the outcome
+eps = rnorm(n) * sqrt(1 - h2)
+y = X %*% beta_coef + eps
+
+# center y and X and  calculate the heritability
+
+y = scale(y, scale = F)
+X = scale(X, scale = F)
+scoring_vanila(X, y, W = NULL, theta0 =c(0.5, 0.5), max_iter = 120, eps = 1e-6, verbose = F)
+```
+Simulate the heterogenous genetic effects 
+
+```{r}
+
+#ukbb_geno_subset_EUR_chr1_4.8M_5.5M_LD <- readRDS("/n/holystore01/LABS/xlin/Lab/wangjq/svd_heri/prepare/ukbb_geno_subset_EUR_chr1_4.8M_5.5M_LD.rds")
+data('ukbb_geno_EUR_chr1_4.8M_5.5M_LD')
+Sigma = ukbb_geno_EUR_chr1_4.8M_5.5M_LD[1:1000, 1:1000]
+Sigma_sqrt = with(eigen(Sigma), vectors %*% (values^(1/2) * t(vectors)))
+
+
+# simulate the weighted normal effects  weight * alpha
+weight = sqrt(rowSums(Sigma^2))
+alpha  = rnorm(p,  1)
+weight[-sample(1:1000, 800)] = 0
+beta_coef = weight * alpha
+beta_coef = beta_coef/sqrt( as.numeric( t( beta_coef) %*% Sigma %*% beta_coef ) ) * sqrt(h2)
+
+
+X = matrix(rnorm(n*p), n, p) %*% Sigma_sqrt
+# generate the outcome
+eps = rnorm(n) * sqrt(1 - h2)
+y = X %*% beta_coef + eps
+
+
+y = scale(y, scale = F)
+X = scale(X, scale = F)
+scoring_vanila(X, y, W = NULL, theta0 =c(0.5, 0.5), max_iter = 120, eps = 1e-6, verbose = F) # biased estimation with XX\tr
+
+
+```
+
