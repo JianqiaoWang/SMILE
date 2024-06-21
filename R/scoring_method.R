@@ -13,6 +13,8 @@ scoring_vanila <- function(X, y, W = NULL, theta0 =c(0.5, 0.5),
     X %*% W %*% t(X)
   }
 
+  #stopifnot(isSymmetric(S))
+
   S = (n/sum(diag(S) )) * S
   S_eigen = eigen(S)
 
