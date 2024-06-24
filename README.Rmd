@@ -22,7 +22,7 @@ devtools::load_all()
 The package contains two parts: (1) a general function for SMILE estimation and inference based on the input of (S, y); (2) the function designed for the genetic application. 
 The input is a genotype  bed.file, specifed weight matrix W or a block division, and the outcome file . 
 
-## Statistical evaluation
+# Statistical evaluation
 
 ```{r}
 set.seed(123)
@@ -95,13 +95,35 @@ scoring_vanila(X, y, W = NULL, theta0 =c(0.5, 0.5), max_iter = 120, eps = 1e-6, 
 
 # Genetic function and applications 
 
-We only need the bed.file and W
-
+We only need the bed.file and specified  W matrix
 ```{r}
 library(bigsnpr)
+bedfile = "/n/holystore01/LABS/xlin/Lab/wangjq/UKBB/geno/ukb_cal_autochr_v2_EUR_0_01.bed"
+obj.bed <- bed(bedfile)
+n = nrow(obj.bed)
 
 
+## ---------------------------------------------------
+weight_mat = readRDS("/n/holystore01/LABS/xlin/Lab/wangjq/UKBB/prepare/weight_mat.rds")
+total_rank = sum(unlist(weight_mat[[2]]))
+weight_mat = weight_mat[[1]]
 
+
+## -- match the phenotypes ---------------
+pheno = data.table::fread(pheno.file) %>% dplyr::select(FID, IID, all_of(outcome)) %>% dplyr::rename(Y=outcome)
+pheno_info = dplyr::left_join(obj.bed$fam, pheno,  by = c( "family.ID" = "FID", "sample.ID" = "IID" ) ) %>% 
+  dplyr::mutate(index = 1:n()) ;
+pheno_info_non_missing = pheno_info[!is.na(pheno_info$Y), ]
+
+
+## calculate the scaling
+stats_X =bed_scaleBinom(obj.bed, ind.row = pheno_info_non_missing$index, ncores = nb_cores())
+means = stats_X$center
+sds = stats_X$scale
+
+res = fisher_scoring_var_FBM(obj.bed, scale(pheno_info_non_missing$Y, scale = T), theta0 = theta0, ind.row = pheno_info_non_missing$index,  
+                             method = "cg",  weight_mat = weight_mat,  weight_rank = total_rank,  approx = "MC", verbose = T, scale = stats_X$scale*sqrt(total_rank), 
+                       nsim = 60, center = stats_X$center, ncores = nb_cores()) # test the bigstatsr pakcgae
 
 ```
 
